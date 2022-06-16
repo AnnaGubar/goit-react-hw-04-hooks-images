@@ -7,47 +7,21 @@ import Modal from './Components/Modal';
 import Searchbar from './Components/Searchbar';
 import ImageGallery from './Components/ImageGallery';
 
-const Status = {
-  IDLE: 'idle',
-  PENDING: 'pending',
-  RESOLVED: 'resolved',
-  REJECTED: 'rejected',
-  NOTFOUND: 'not found',
-};
-
 function App() {
   const [searchValue, setSearchValue] = useState('');
+  const [gallery, setGallery] = useState([]);
   const [page, setPage] = useState(1);
+  const [totalHits, setTotalHits] = useState(null);
+
+  const [isLoading, setIsLoading] = useState(false);
+
   const [showModal, setShowModal] = useState(false);
   const [clickedImage, setClickedImage] = useState(null);
-  const [status, setStatus] = useState(Status.IDLE);
-  const [gallery, setGallery] = useState([]);
-  const [hitsLength, setHitsLength] = useState(null);
+
+  const [isNotFound, setIsNotFound] = useState(false);
 
   const isSearchValueFirstRender = useRef(true);
 
-  const handleValueSearch = searchValue => {
-    if (!searchValue || !isSearchValueFirstRender) {
-      alert('Пожалуйста введите значение для поиска');
-      return;
-    }
-    setSearchValue(searchValue);
-    setGallery([]);
-    setPage(1);
-  };
-
-  const toggleModal = () => {
-    setShowModal(!showModal);
-  };
-
-  const showModalImage = clickedImage => {
-    toggleModal();
-    setClickedImage(clickedImage);
-  };
-
-  const incrementPage = () => {
-    setPage(prev => prev + 1);
-  };
 
   useEffect(() => {
     if (isSearchValueFirstRender.current) {
@@ -55,18 +29,16 @@ function App() {
     }
 
     if (searchValue) {
-      setStatus(Status.PENDING);
+      setIsLoading(true);
+      setIsNotFound(false)
 
       searchApi
         .fetchImages(searchValue, page)
         .then(({ total, hits }) => {
           if (!total) {
-            setHitsLength(0);
-            setStatus(Status.NOTFOUND);
+            setIsNotFound(true);
             return;
           }
-
-          // console.log(total);
 
           let data = hits.map(value => {
             return {
@@ -77,18 +49,41 @@ function App() {
             };
           });
 
-          setHitsLength(data.length);
-
           // gallery.length === 0
           //   ? setGallery(data)
           //   : setGallery(prev => [...prev, ...data]);
-
+          
+          setTotalHits(total);
           setGallery(prev => [...prev, ...data]);
-          setStatus(Status.RESOLVED);
         })
-        .catch(error => setStatus(Status.REJECTED));
+        .catch(error => console.log(error))
+        .finally(() => setIsLoading(false));
     }
   }, [page, searchValue]);
+
+  
+  function handleValueSearch (searchValue) {
+    if (!searchValue || !isSearchValueFirstRender) {
+      alert('Пожалуйста введите значение для поиска');
+      return;
+    }
+    setSearchValue(searchValue);
+    setGallery([]);
+    setPage(1);
+  };
+
+  function toggleModal () {
+    setShowModal(!showModal);
+  };
+
+  function showModalImage (clickedImage)  {
+    toggleModal();
+    setClickedImage(clickedImage);
+  };
+
+  function incrementPage () {
+    setPage(prev => prev + 1);
+  };
 
   // console.log('gallery', page, gallery);
 
@@ -96,25 +91,21 @@ function App() {
     <div className={s.App}>
       <Searchbar onSubmit={handleValueSearch} />
 
-      {status === 'idle' && (
-        <div className={s.title}>Пока еще ничего не искали</div>
-      )}
+      {!isLoading && gallery.length === 0 && !isNotFound && (
+          <div className={s.title}>Пока еще ничего не искали</div>
+        )}
 
-      {status === 'pending' && <Loader />}
+        {isNotFound && <div className={s.title}>Поиск не дал результатов</div>}
 
-      {status === 'not found' && (
-        <div className={s.title}>Поиск не дал результатов</div>
-      )}
+        {gallery && (
+          <ImageGallery gallery={gallery} showModalImage={showModalImage} />
+        )}
 
-      {status === 'resolved' && (
-        <ImageGallery gallery={gallery} showModalImage={showModalImage} />
-      )}
+        {isLoading && <Loader />}
 
-      {status === 'rejected' && <div className={s.title}>Произошла ошибка</div>}
-
-      {hitsLength === 12 && status === 'resolved' && (
-        <Button title="Load more" onClick={incrementPage} />
-      )}
+        {gallery.length > 11 && gallery.length !== totalHits && !isLoading && (
+          <Button title="Load more" onClick={incrementPage} />
+        )}
 
       {showModal && (
         <Modal onClose={toggleModal} source={clickedImage}>
